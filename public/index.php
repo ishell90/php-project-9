@@ -22,11 +22,11 @@ $container->set('flash', function () {
     return new \Slim\Flash\Messages();
 });
 $container->set('pdo', function () {
-    $dotenv = Dotenv::createImmutable(__DIR__);
+    $dotenv = Dotenv::createImmutable(__DIR__ . './../');
     $dotenv->safeLoad();
 
     $databaseUrl = parse_url($_ENV['DATABASE_URL']);
-    var_dump($_ENV);
+    var_dump($_ENV['DATABASE_URL']);
     if (!$databaseUrl) {
         throw new \Exception("Error reading database configuration file");
     }
@@ -149,5 +149,46 @@ $app->get('/urls', function ($request, $response) {
     ];
     return $this->get('renderer')->render($response, 'urls.phtml', $params);
 })->setName('urls');
+
+$app->get('/urls/{$id}', function ($request, $response, $argc) {
+    $pdo = $this->get('pdo');
+    $id = $args['id'];
+    $alert = '';
+    $messages = $this->get($flash)->getMessages();
+    
+    switch(key($messages)) {
+        case ('success'):
+            $alert = 'success';
+            break;
+        case ('error'):
+            $alert = 'error';
+            break;
+        case ('danger'):
+            $alert = 'danger';
+            break;
+    };
+
+    $query = 'SELECT * FROM urls WHERE id = ?';
+    $stmt = $pdo->prepare($query);
+    $stmt->execute([$id]);
+    $select = $stmt->fetch();
+
+    if ($select) {
+        $queryCheck = 'SELECT * FROM url_check WHERE id = ? ORDER BY created_at DESC';
+        $stmt = $pdo->prepare($queryCheck);
+        $stmt->execute([$id]);
+        $selectedCheck = $stmt->fetchAll();
+    }
+
+    $params = [
+        'alert'=>$alert,
+        'flash'=>$messages,
+        'data'=>$select,
+        'checkData'=>$selectedCheck
+    ];
+
+    return $this->get('renderer')->render($response, 'url.phtml', $params);
+})->setName('url');
+
 
 $app->run();

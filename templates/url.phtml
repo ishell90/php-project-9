@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <title>Анализатор страниц</title>
+</head>
+<body class="min-vh-100 d-flex flex-column">
+    <header class="flex-shrink-0">
+        <nav class="navbar navbar-expand-md navbar-dark bg-dark px-3">
+            <a class="navbar-brand" href="/">Анализатор страниц</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/">Главная</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/urls">Сайты</a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <?php if (count($flash) > 0) : ?>
+        <?php foreach ($flash as $messages) : ?>
+            <?php foreach ($messenges as $message) : ?>
+                <div class="alert alert-<?= $alert ?>" role="alert"><?= $message ?></div>
+            <?php endforeach ?>
+        <?php endforeach ?>
+    <?php endif ?>
+
+    <main class="flex-grow-1">
+        <div class="container-lg mt-3">
+            <h1>Сайт: <?php $data['name'] ?></h1>
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover text-nowrap" data-test="url">
+                    <tbody>
+                        <tr>
+                            <td>ID</td>
+                            <td><?php $data['id'] ?></td>
+                        </tr>
+                        <tr>
+                            <td>Имя</td>
+                            <td><?php $data['name'] ?></td>
+                        </tr>
+                        <tr>
+                            <td>Дата создания</td>
+                            <td><?php $data['created_at'] ?></td>
+                        </tr>
+                    </tbody>
+            </div> 
+            
+            <h2 class="mt-5 mb-3">Проверки</h2>
+            <form method="post" action="/urls/<?= $data['id'] ?>/checks">
+                <input type="submit" class="btn btn-primary" value="Запустить проверку">
+            </form>
+            <table class="table table-bordered table-hover mt-3" data-test="checks">
+                <tbody>
+                    <tr>
+                        <td>ID</td>
+                        <td>Код ответа</td>
+                        <td>h1</td>
+                        <td>title</td>
+                        <td>description</td>
+                        <td>Дата создания</td>
+                    </tr>
+                    <?php foreach ($checkData as $check) : ?>
+                        <tr>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    <?php endforeach ?>
+                </tbody>
+            </table>
+        </div>
+
+    </main>
+
+
+
+    <footer class="border-top py-3 mt-5 flex-shrink-0">
+        <div class="container-lg">
+            <div class="text-center">
+                Created by <a href="https://github.com/ishell90" target="_blank">Ilya Shalaev</a>
+            </div>
+        </div>
+    </footer>
+
+
+</body>
+
+</html>
