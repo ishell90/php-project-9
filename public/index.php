@@ -1,14 +1,5 @@
 <?php
 
-$autoloadPath1 = __DIR__ . '/../../../autoload.php';
-$autoloadPath2 = __DIR__ . '/../vendor/autoload.php';
-
-if (file_exists($autoloadPath1)) {
-    require_once $autoloadPath1;
-} else {
-    require_once $autoloadPath2;
-}
-
 use Slim\Factory\AppFactory;
 use Slim\Middleware\MethodOverrideMiddleware;
 use DI\Container;
@@ -19,6 +10,10 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Exception\ConnectException;
 
+require_once __DIR__ . '/../vendor/autoload.php';
+
+session_start();
+
 $container = new Container();
 $container->set('renderer', function () {
     return new \Slim\Views\PhpRenderer(__DIR__ . '/../templates');
@@ -26,12 +21,12 @@ $container->set('renderer', function () {
 $container->set('flash', function () {
     return new \Slim\Flash\Messages();
 });
-
 $container->set('pdo', function () {
-    $dotenv = Dotenv::createImmutable(__DIR__ . '/../');
+    $dotenv = Dotenv::createImmutable(__DIR__);
     $dotenv->safeLoad();
 
     $databaseUrl = parse_url($_ENV['DATABASE_URL']);
+    var_dump($_ENV);
     if (!$databaseUrl) {
         throw new \Exception("Error reading database configuration file");
     }
@@ -50,20 +45,17 @@ $container->set('pdo', function () {
         $dbPassword
     );
 
-    $pdo = new \PDO($conStr);
+    $pdo = new \PDO('pgsql:host=localhost;dbname=urls', 'ishell90', '159753zxc');
     $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
 
     return $pdo;
 });
 
-$container->set('client', function () {
-    return new Client();
-});
-
 AppFactory::setContainer($container);
 $app = AppFactory::create();
-$app->addErrorMiddleware(true, true, true);
+$app->add(MethodOverrideMiddleware::class);
+$errorMiddleware = $app->addErrorMiddleware(true, true, true);
 
 $router = $app->getRouteCollector()->getRouteParser();
 
