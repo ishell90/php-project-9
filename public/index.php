@@ -9,6 +9,7 @@ use Dotenv\Dotenv;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Exception\ConnectException;
+use DiDom\Document;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -26,7 +27,6 @@ $container->set('pdo', function () {
     $dotenv->safeLoad();
 
     $databaseUrl = parse_url($_ENV['DATABASE_URL']);
-    var_dump($_ENV['DATABASE_URL']);
     if (!$databaseUrl) {
         throw new \Exception("Error reading database configuration file");
     }
@@ -44,11 +44,11 @@ $container->set('pdo', function () {
         $dbUser,
         $dbPassword
     );
-
-    $pdo = new \PDO('pgsql:host=localhost;dbname=urls', 'ishell90', '159753zxc');
+    
+    $pdo = new \PDO($conStr);
     $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(\PDO::ATTR_DEFAULT_FETCH_MODE, \PDO::FETCH_ASSOC);
-
+    
     return $pdo;
 });
 
@@ -56,6 +56,12 @@ AppFactory::setContainer($container);
 $app = AppFactory::create();
 $app->add(MethodOverrideMiddleware::class);
 $errorMiddleware = $app->addErrorMiddleware(true, true, true);
+
+$customErrorHandler = function () use ($app) {
+    $response = $app->getResponseFactory()->createResponse();
+    return $this->get('renderer')->render($response, "error404.phtml");
+};
+$errorMiddleware->setDefaultErrorHandler($customErrorHandler);
 
 $router = $app->getRouteCollector()->getRouteParser();
 
@@ -78,7 +84,7 @@ $app->post('/urls', function ($request, $response) use ($router) {
             $url = strtolower($formData['name']);
             $parsedUrl = parse_url($url);
             $urlName = "{$parsedUrl['scheme']}://{$parsedUrl['host']}";
-            $created_at = Carbon::now();
+            $createdAt = Carbon::now();
 
             $queryUrl = "SELECT name FROM urls WHERE name = ?";
             $stmt = $pdo->prepare($queryUrl);
@@ -95,13 +101,13 @@ $app->post('/urls', function ($request, $response) use ($router) {
                 return $response->withRedirect($router->urlFor('url', ['id' => $selectId]));
             }
 
-                $sql = "INSERT INTO urls (name, created_at) VALUES (?, ?)";
-                $stmt = $pdo->prepare($sql);
-                $stmt->execute([$urlName, $createdAt]);
-                $lastInsertId = (string) $pdo->lastInsertId();
+            $sql = "INSERT INTO urls (name, created_at) VALUES (?, ?)";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$urlName, $createdAt]);
+            $lastInsertId = (string) $pdo->lastInsertId();
 
-                $this->get('flash')->addMessage('success', 'Страница успешно добавлена');
-                return $response->withRedirect($router->urlFor('url', ['id' => $lastInsertId]));
+            $this->get('flash')->addMessage('success', 'Страница успешно добавлена');
+            return $response->withRedirect($router->urlFor('url', ['id' => $lastInsertId]));
 
         } catch (\Throwable | \PDOException $e) {
             echo $e->getMessage();
@@ -110,8 +116,8 @@ $app->post('/urls', function ($request, $response) use ($router) {
 
     $errors = $validator->errors();
     $params = [
-        'url'=>$formData['name'],
-        'errors'=>$errors,
+        'url' => $formData['name'],
+        'errors' => $errors,
         'invalidForm' => 'is-invalid'
     ];
     
@@ -125,6 +131,7 @@ $app->get('/urls', function ($request, $response) {
     $stmt = $pdo->prepare($queryUrl);
     $stmt->execute();
     $selectedUrls = $stmt->fetchAll(\PDO::FETCH_UNIQUE);
+    
 
     $queryChecks = 'SELECT 
     url_id, 
@@ -150,11 +157,11 @@ $app->get('/urls', function ($request, $response) {
     return $this->get('renderer')->render($response, 'urls.phtml', $params);
 })->setName('urls');
 
-$app->get('/urls/{$id}', function ($request, $response, $argc) {
+$app->get('/urls/{$id}', function ($request, $response, $args) {
     $pdo = $this->get('pdo');
     $id = $args['id'];
     $alert = '';
-    $messages = $this->get($flash)->getMessages();
+    $messages = $this->get('flash')->getMessages();
     
     switch(key($messages)) {
         case ('success'):
@@ -181,14 +188,68 @@ $app->get('/urls/{$id}', function ($request, $response, $argc) {
     }
 
     $params = [
-        'alert'=>$alert,
-        'flash'=>$messages,
-        'data'=>$select,
-        'checkData'=>$selectedCheck
+        'alert' => $alert,
+        'flash' => $messages,
+        'data' => $select,
+        'checkData' => $selectedCheck
     ];
 
     return $this->get('renderer')->render($response, 'url.phtml', $params);
 })->setName('url');
 
+$app->post('/urls/{url_id}/check', function ($request, $response, $args) use ($router) {
+    $id = $args['url_id'];
+
+    try {
+        $pdo = $this->get('pdo');
+
+        $querySql = "SELECT name FROM urls WHERE id = ?";
+        $stmt = $pdo->prepare($querySql);
+        $stmt->execute([$id]);
+        $selectedUrl = $stmt->fetch(\PDO::FETCH_COLUMN);
+
+        $createdAt = Carbon::now();
+
+        $client = $this->get('client');
+
+        try {
+            $res = $client->get($selectedUrl);
+            $this->get('flash')->addMessage('success', 'Страница успешно проверена');
+        } catch (RequestException $e) {
+            $res = $e->getResponse();
+            $this->get('flash')->clearMessages();
+            $errorMessage = 'Проверка была выполнена успешно, но сервер ответил c ошибкой';
+            $this->get('flash')->addMessage('error', $errorMessage);
+        } catch (ConnectException $e) {
+            $errorMessage = 'Произошла ошибка при проверке, не удалось подключиться';
+            $this->get('flash')->addMessage('danger', $errorMessage);
+            return $response->withRedirect($router->urlFor('url', ['id' => $id]));
+        }
+
+        $htmlBody = !is_null($res) ? $res->getBody() : '';
+        /** @var Document $document */
+        $document = !is_null($res) ? new Document((string) $htmlBody) : '';
+        $statusCode = !is_null($res) ? $res->getStatusCode() : null;
+        $h1 = !is_null($res) ? optional($document->first('h1'))->text() : '';
+        $title = !is_null($res) ? optional($document->first('title'))->text() : '';
+        $description = !is_null($res) ? optional($document->first('meta[name="description"]'))->getAttribute('content') : '';
+
+        $sql = "INSERT INTO url_checks (
+            url_id, 
+            created_at, 
+            status_code, 
+            h1, 
+            title, 
+            description) 
+            VALUES (?, ?, ?, ?, ?, ?)";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$id, $createdAt, $statusCode, $h1, $title, $description]);
+    } catch (\PDOException $e) {
+        echo $e->getMessage();
+    }
+
+    return $response->withRedirect($router->urlFor('url', ['id' => $id]));
+
+});
 
 $app->run();

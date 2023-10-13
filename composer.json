@@ -26,7 +26,9 @@
         "vlucas/phpdotenv": "^5.5",
         "guzzlehttp/guzzle": "^7.8",
         "illuminate/support": "^10.26",
-        "tightenco/collect": "^9.52"
+        "tightenco/collect": "^9.52",
+        "imangazaliev/didom": "^2.0",
+        "guzzlehttp/psr7": "^2.6"
     },
     "require-dev": {
         "squizlabs/php_codesniffer": "3.*"
